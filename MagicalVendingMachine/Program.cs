@@ -38,7 +38,11 @@ namespace MagicalVendingMachine
                 "Shadow Warrior's Ring",
                 "Gate Key",
                 "Sung Jin-Woo's Cloak of Shadows",
-                "Potion of Instant Recovery"
+                "Potion of Instant Recovery",
+                "Demon Kings Daggers",
+                "Sung Jin-Woo's Sense of Humor",
+                "A DATE FOR SUNG JIN-WOO!!! (Inflatable)",
+                "Statue Of God (Double dungeon version)"
             };
         }
 
