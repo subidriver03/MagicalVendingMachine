@@ -1,5 +1,6 @@
-﻿using System;
+﻿using System.IO;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace MagicalVendingMachine
 {
@@ -14,11 +15,17 @@ namespace MagicalVendingMachine
 
             while (keepRunning)
             {
+                
                 DisplayVendingOptions(vendingItems);
                 int selection = GetUserSelection(vendingItems.Count);
-                VendItem(selection, vendingItems);
+                string item = VendItem(selection, vendingItems);
 
-                keepRunning = AskToContinue();
+                using (StreamWriter w = File.AppendText("log.txt"))
+                {
+                    VendLog(item, w);
+                }
+
+                    keepRunning = AskToContinue();
             }
 
             Console.WriteLine("Thank you for using the Magical Vending Machine. Have a great day!");
@@ -71,17 +78,31 @@ namespace MagicalVendingMachine
             return selection;
         }
 
-        static void VendItem(int selection, List<string> items)
+        static string VendItem(int selection, List<string> items)
         {
             string item = items[selection - 1];
             Console.WriteLine($"\nVending... {item}");
             Console.WriteLine("Enjoy your magical item!\n");
+            return item;
+        }
+
+        static void VendLog(string logMessage, TextWriter w)
+        {
+            w.WriteLine($"Item aquired {logMessage}" + $"  ::  {DateTime.Now.ToLongTimeString()} | {DateTime.Now.ToLongDateString()}");
         }
 
         static bool AskToContinue()
         {
             Console.Write("Would you like to select another item? (yes/no): ");
             string response = Console.ReadLine()?.Trim().ToLower();
+
+            if (response != "yes" || 
+                response != "no" || 
+                response != "y" || 
+                response != "n")
+            {
+                Console.WriteLine("System Error! Invalid answer. \nFailure to respond correctly will result in forfiet of any purches made.");
+            }
             return response == "yes" || response == "y";
         }
     }
