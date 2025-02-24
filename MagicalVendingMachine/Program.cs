@@ -136,7 +136,7 @@ namespace MagicalVendingMachine
             {
                 EnoughMoney = false;
                 Console.WriteLine("Sorry, you have no more coins to continue shopping.");
-                Console.WriteLine($"Balance: {Balance}");
+                Console.WriteLine($"Balance: {Balance} MC");
             }
             else if (Balance < MinimumPrice)
             {
@@ -194,7 +194,7 @@ namespace MagicalVendingMachine
             for (int i = 0; i < items.Count; i++)
             {
                 Console.Write($"{i + 1}. {items[i]}: ");
-                Console.WriteLine($"{prices[i]} mc");
+                Console.WriteLine($"{prices[i]} MC");
             }
 
         }
@@ -224,9 +224,9 @@ namespace MagicalVendingMachine
 
             Bank.UpdateBalance(ItemPrice);
             Balance = Bank.GetBalance();
-            Console.WriteLine($"\nvending... {item} for {ItemPrice} mc");
-            Console.WriteLine($"balance: {Balance} mc");
-            Console.WriteLine("enjoy your magical item!\n");
+            Console.WriteLine($"\nVending... {item} for {ItemPrice} MC");
+            Console.WriteLine($"Balance: {Balance} MC");
+            Console.WriteLine("Enjoy your magical item!\n");
 
             return item;
         }
