@@ -91,19 +91,29 @@ namespace MagicalVendingMachine
             w.WriteLine($"Item aquired {logMessage}" + $"  ::  {DateTime.Now.ToLongTimeString()} | {DateTime.Now.ToLongDateString()}");
         }
 
-        static bool AskToContinue()
+        static bool AskToContinue() 
         {
-            Console.Write("Would you like to select another item? (yes/no): ");
-            string response = Console.ReadLine()?.Trim().ToLower();
+            ConsoleKeyInfo KeyPressed = new ConsoleKeyInfo();
 
-            if (response != "yes" || 
-                response != "no" || 
-                response != "y" || 
-                response != "n")
+            Console.WriteLine();
+            Console.Write("Would you like to select another item? ");
+            Console.WriteLine("Press '1' for yes or '2' for no");
+
+            do
             {
-                Console.WriteLine("System Error! Invalid answer. \nFailure to respond correctly will result in forfiet of any purches made.");
+                KeyPressed = Console.ReadKey(true);
+
+            } while (KeyPressed.Key != ConsoleKey.D1 && KeyPressed.Key != ConsoleKey.D2);
+
+            if (KeyPressed.Key == ConsoleKey.D1)
+            {
+                return true;
             }
-            return response == "yes" || response == "y";
+            else
+            {
+                return false;
+            }
+
         }
     }
 }
