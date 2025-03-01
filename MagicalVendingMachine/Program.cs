@@ -1,264 +1,199 @@
-﻿using System.IO;
+﻿using System;
 using System.Collections.Generic;
-using System.Reflection;
+using System.IO;
+using Newtonsoft.Json;
 
 namespace MagicalVendingMachine
 {
     class Program
     {
-        static void Main(string[] args)
+        private static readonly string inventoryFile = "inventory.json";
+
+        static void Main()
         {
-            var vendingItems = GetVendingItems();
+            var vendingItems = LoadInventory();
             bool keepRunning = true;
+            var itemsPrices = GetItemsPrices();
 
-            var ItemsPrices = getItemsPrices();
-            int Balance = 0;
-            string ItemPurchased = string.Empty;
-            int selection;
-            bool EnoughMoney;
-
-            DisplayWelcomeMessage(vendingItems, ItemsPrices);
+            DisplayWelcomeMessage(vendingItems, itemsPrices);
 
             while (keepRunning)
             {
                 Console.Clear();
+                if (!CheckBalance(itemsPrices.Min())) break;
 
-                EnoughMoney = CheckBalance(ItemsPrices.Min());
+                DisplayVendingOptions(vendingItems, itemsPrices);
+                int selection = GetUserSelection(vendingItems.Count);
 
-                if (!EnoughMoney)
-                {
-                    break;
-                }
-                Balance = Bank.GetBalance();
-                DisplayVendingOptions(vendingItems, ItemsPrices);
-                selection = GetUserSelection(vendingItems.Count);
-
-                if (Balance < ItemsPrices[selection - 1])
+                if (Bank.GetBalance() < itemsPrices[selection - 1])
                 {
                     Console.Clear();
-                    Console.WriteLine("You don't have enough coins to purchase this item");
-                    Console.WriteLine($"Balance: {Balance} MC");
+                    Console.WriteLine($"You don't have enough coins to purchase this item.\nBalance: {Bank.GetBalance()} MC");
+                    continue;
                 }
-                else
+
+                if (vendingItems[selection - 1].Stock <= 0)
                 {
                     Console.Clear();
-                    ItemPurchased = VendItem(selection, vendingItems, ItemsPrices);
-
-                    using (StreamWriter w = File.AppendText("log.txt"))
-                    {
-                        VendLog(ItemPurchased, w);
-                    }
+                    Console.WriteLine($"Sorry, {vendingItems[selection - 1].Name} is out of stock!");
+                    continue;
                 }
 
+                Console.Clear();
+                string itemPurchased = VendItem(selection, vendingItems, itemsPrices);
+
+                using (StreamWriter w = File.AppendText("log.txt"))
+                    VendLog(itemPurchased, w);
+
+                SaveInventory(vendingItems);
                 keepRunning = AskToContinue();
             }
 
-            Balance = Bank.GetBalance();
-
-            if (Balance != 0)
+            if (Bank.GetBalance() > 0)
             {
-                Console.WriteLine();
-                Console.WriteLine("press any key to go to the bank to return the coin(s) left");
+                Console.WriteLine("\nPress any key to go to the bank to return the coin(s) left.");
                 Console.ReadKey();
-                TerminateShopping(Balance);
+                TerminateShopping(Bank.GetBalance());
             }
 
-            Console.WriteLine();
-            Console.WriteLine("Thank you for using the Magical Vending Machine. Have a great day!");
+            Console.WriteLine("\nThank you for using the Magical Vending Machine. Have a great day!");
         }
 
-        static List<int> getItemsPrices()
+        static List<VendingItem> LoadInventory()
         {
-            return new List<int>
+            if (!File.Exists(inventoryFile))
             {
-                30, //"Elixir of Eternal Stamina"
-                26, //"Mana Crystal"
-                10, //"Shadow Warrior's Ring"
-                7, //"Gate Key"
-                32, //"Sung Jin-Woo's Cloak of Shadows"
-                68, //"Potion of Instant Recovery"
-                35, //"Demon Kings Daggers"
-                42, //"Sung Jin-Woo's Sense of Humor"
-                37, //"A DATE FOR SUNG JIN-WOO!!! (Inflatable)"
-                74 //"Statue Of God (Double dungeon version)"
-            };
+                var defaultItems = GetDefaultVendingItems();
+                SaveInventory(defaultItems);
+                return defaultItems;
+            }
+
+            string json = File.ReadAllText(inventoryFile);
+            return JsonConvert.DeserializeObject<List<VendingItem>>(json) ?? GetDefaultVendingItems();
         }
 
-        static void TerminateShopping(int Balance)
-        {
-            decimal CashAmount;
+        static void SaveInventory(List<VendingItem> inventory) =>
+            File.WriteAllText(inventoryFile, JsonConvert.SerializeObject(inventory, Formatting.Indented));
 
+        static List<int> GetItemsPrices() => new() { 30, 26, 10, 7, 32, 68, 35, 42, 37, 74 };
+
+        static void TerminateShopping(int balance)
+        {
             Console.Clear();
             Console.WriteLine("Welcome back to the Exchange Bank!");
-            CashAmount = Bank.CloseAccount();
-            Console.WriteLine();
-            Console.WriteLine($"Exchanged: {Balance} MC     Cash Rendered: {CashAmount.ToString("C")}");
-            Console.WriteLine();
+            Console.WriteLine($"\nExchanged: {balance} MC     Cash Rendered: {Bank.CloseAccount():C}\n");
+        }
 
+        static bool CheckBalance(int minimumPrice)
+        {
+            int balance = Bank.GetBalance();
+            if (balance < minimumPrice)
+            {
+                Console.WriteLine($"Sorry, you do not have enough coins to continue shopping.\nBalance: {balance} MC");
+                return false;
+            }
+            return true;
+        }
+
+        static void DisplayWelcomeMessage(List<VendingItem> items, List<int> prices)
+        {
+            Console.WriteLine("Welcome to the Magical Vending Machine from Solo Leveling!\n");
+            DisplayVendingOptions(items, prices);
+            Console.WriteLine("\nYou need to get some Magical Coins (MC) in order to purchase any item.");
+            Console.WriteLine("\nPress any key to go to the Bank to get some magical coins.");
+            Console.ReadKey();
+            Console.Clear();
+            GetInitialBalance();
+            Console.WriteLine("Press any key to start shopping.");
+            Console.ReadKey();
         }
 
         static void GetInitialBalance()
         {
-            decimal CashAmount = 0;
-            int Balance = 0;
-            string UserInput;
-
             Console.WriteLine("Welcome to the Exchange Bank!");
-            Console.WriteLine();
-            Console.Write("Exchange Rate: ");
-            Console.WriteLine(1.ToString("C") + " = 4 MC");
-            Console.WriteLine();
-            Console.Write("How much cash to you want to exchange: ");
+            Console.WriteLine("\nExchange Rate: 1 USD = 4 MC");
+            Console.Write("\nHow much cash do you want to exchange? ");
 
-            UserInput = Console.ReadLine();
+            decimal cashAmount;
+            while (!decimal.TryParse(Console.ReadLine(), out cashAmount) || cashAmount <= 0)
+                Console.Write("Invalid input. Try again: ");
 
-            while (!decimal.TryParse(UserInput, out CashAmount) || CashAmount <= 0)
-            {
-                Console.Write("invalid input. Try again: ");
-                UserInput = Console.ReadLine();
-            }
-
-            Bank.SetBalance(CashAmount);
-            Balance = Bank.GetBalance();
-            Console.WriteLine();
-            Console.WriteLine($"your balance: {Balance} MC");
-
+            Bank.SetBalance(cashAmount);
+            Console.WriteLine($"\nYour balance: {Bank.GetBalance()} MC");
         }
 
-        static bool CheckBalance(int MinimumPrice)
+        static void DisplayVendingOptions(List<VendingItem> items, List<int> prices)
         {
-            int Balance;
-            bool EnoughMoney = true;
-
-            Balance = Bank.GetBalance();
-
-            if (Balance == 0)
-            {
-                EnoughMoney = false;
-                Console.WriteLine("Sorry, you have no more coins to continue shopping.");
-                Console.WriteLine($"Balance: {Balance} MC");
-            }
-            else if (Balance < MinimumPrice)
-            {
-                EnoughMoney = false;
-                Console.WriteLine("Sorry, you no longer have enough coins to continue shopping");
-                Console.WriteLine($"Balance: {Balance} MC");
-
-            }
-            return EnoughMoney;
-        }
-
-
-        static void DisplayWelcomeMessage(List<string> items, List<int> prices)
-        {
-            Console.WriteLine("Welcome to the Magical Vending Machine " +
-                "from Solo Leveling!");
-            Console.WriteLine();
-
-            DisplayVendingOptions(items, prices);
-
-            Console.WriteLine();
-            Console.WriteLine("you need to get some Magical Coins (MC) " +
-            "in order to purchase any item.");
-            Console.WriteLine();
-            Console.WriteLine("press any key to go " +
-                "to the Bank to get some magical coins");
-            Console.ReadKey();
-            Console.Clear();
-            GetInitialBalance();
-            Console.WriteLine("press any key to  start shopping");
-            Console.ReadKey();
-
-        }
-
-        static List<string> GetVendingItems()
-        {
-            return new List<string>
-            {
-                "elixir of eternal stamina",
-                "mana crystal",
-                "shadow warrior's ring",
-                "gate key",
-                "sung jin-woo's cloak of shadows",
-                "potion of instant recovery",
-                "demon kings daggers",
-                "sung jin-woo's sense of humor",
-                "a date for sung jin-woo!!! (inflatable)",
-                "statue of god (double dungeon version)"
-            };
-        }
-
-        static void DisplayVendingOptions(List<string> items, List<int> prices)
-        {
-            Console.WriteLine("\navailable items:");
+            Console.WriteLine("\nAvailable items:");
             for (int i = 0; i < items.Count; i++)
-            {
-                Console.Write($"{i + 1}. {items[i]}: ");
-                Console.WriteLine($"{prices[i]} MC");
-            }
-
+                Console.WriteLine($"{i + 1}. {items[i].Name}: {prices[i]} MC [Stock: {items[i].Stock}]");
         }
 
         static int GetUserSelection(int itemCount)
         {
-            int selection;
             while (true)
             {
                 Console.Write("\nEnter the number of your selection: ");
-                string input = Console.ReadLine();
-                if (int.TryParse(input, out selection) && selection >= 1 && selection <= itemCount)
-                {
-                    break;
-                }
+                if (int.TryParse(Console.ReadLine(), out int selection) && selection >= 1 && selection <= itemCount)
+                    return selection;
                 Console.WriteLine("Invalid selection. Please enter a valid number.");
             }
-            return selection;
         }
 
-        static string VendItem(int selection, List<string> items, List<int> ItemsPrices)
+        static string VendItem(int selection, List<VendingItem> items, List<int> itemsPrices)
         {
-            string item = items[selection - 1];
+            var item = items[selection - 1];
 
-            int ItemPrice = ItemsPrices[selection - 1];
-            int Balance;
+            Bank.UpdateBalance(itemsPrices[selection - 1]);
+            item.Stock--;
 
-            Bank.UpdateBalance(ItemPrice);
-            Balance = Bank.GetBalance();
-            Console.WriteLine($"\nVending... {item} for {ItemPrice} MC");
-            Console.WriteLine($"Balance: {Balance} MC");
+            SaveInventory(items);
+
+            Console.WriteLine($"\nVending... {item.Name} for {itemsPrices[selection - 1]} MC");
+            Console.WriteLine($"Balance: {Bank.GetBalance()} MC");
             Console.WriteLine("Enjoy your magical item!\n");
 
-            return item;
+            return item.Name;
         }
 
-        static void VendLog(string logMessage, TextWriter w)
+        static void VendLog(string logMessage, TextWriter w) =>
+            w.WriteLine($"Item acquired: {logMessage}  ::  {DateTime.Now.ToLongTimeString()} | {DateTime.Now.ToLongDateString()}");
+
+        static bool AskToContinue()
         {
-            w.WriteLine($"Item aquired {logMessage}" + $"  ::  {DateTime.Now.ToLongTimeString()} | {DateTime.Now.ToLongDateString()}");
+            Console.WriteLine("\nWould you like to select another item? Press '1' for yes or '2' for no.");
+            while (true)
+            {
+                ConsoleKey key = Console.ReadKey(true).Key;
+                if (key == ConsoleKey.D1) return true;
+                if (key == ConsoleKey.D2) return false;
+            }
         }
 
-        static bool AskToContinue() 
+        static List<VendingItem> GetDefaultVendingItems() => new()
         {
-            ConsoleKeyInfo KeyPressed = new ConsoleKeyInfo();
+            new("Elixir of Eternal Stamina", 5),
+            new("Mana Crystal", 5),
+            new("Shadow Warrior's Ring", 5),
+            new("Gate Key", 5),
+            new("Sung Jin-Woo's Cloak of Shadows", 5),
+            new("Potion of Instant Recovery", 5),
+            new("Demon Kings Daggers", 5),
+            new("Sung Jin-Woo's Sense of Humor", 5),
+            new("A DATE FOR SUNG JIN-WOO!!! (Inflatable)", 5),
+            new("Statue Of God (Double Dungeon Version)", 5)
+        };
+    }
 
-            Console.WriteLine();
-            Console.Write("Would you like to select another item? ");
-            Console.WriteLine("Press '1' for yes or '2' for no");
+    class VendingItem
+    {
+        public string Name { get; }
+        public int Stock { get; set; }
 
-            do
-            {
-                KeyPressed = Console.ReadKey(true);
-
-            } while (KeyPressed.Key != ConsoleKey.D1 && KeyPressed.Key != ConsoleKey.D2);
-
-            if (KeyPressed.Key == ConsoleKey.D1)
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-
+        public VendingItem(string name, int stock)
+        {
+            Name = name;
+            Stock = stock;
         }
     }
 }
